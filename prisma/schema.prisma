@@ -1,0 +1,138 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Officer {
+  id           String    @id @default(uuid())
+  badgeNumber  String    @unique
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String    @default("INVESTIGATOR") // "INVESTIGATOR" or "ADMIN"
+  nodeCount    Int       @default(8)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  cases        Case[]
+  evidence     Evidence[]
+  logs         ChainOfCustodyLog[]
+  reports      Report[]
+}
+
+model Case {
+  id           String     @id
+  title        String
+  description  String
+  status       String     @default("ACTIVE") // "ACTIVE", "ARCHIVED", "CLOSED"
+  category     String
+  priority     String     @default("MEDIUM") // "HIGH", "MEDIUM", "LOW"
+  officerId    String?
+  officerName  String
+  badgeNumber  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  officer      Officer?   @relation(fields: [officerId], references: [id])
+  evidence     Evidence[]
+}
+
+model Evidence {
+  id           String     @id
+  name         String
+  type         String     // "document", "image", "video", "audio", "other"
+  size         Int
+  sha256       String     @unique
+  fileUrl      String?
+  uploadDate   DateTime   @default(now())
+  status       String     @default("SECURE") // "SECURE", "VERIFIED", "COMPROMISED"
+  blockNumber  Int?
+  txHash       String?
+  officerId    String?
+  officerName  String
+  badgeNumber  String
+  caseId       String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  case         Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  officer      Officer?   @relation(fields: [officerId], references: [id])
+  metadata     EvidenceMetadata[]
+  custodyLogs  ChainOfCustodyLog[]
+}
+
+model EvidenceMetadata {
+  id         String   @id @default(uuid())
+  evidenceId String
+  key        String
+  value      String
+
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+}
+
+model ChainOfCustodyLog {
+  id          String   @id
+  evidenceId  String
+  action      String   // "INGESTION", "CHECK_OUT", "CHECK_IN", "TRANSFER", "VERIFICATION"
+  officer     String
+  badgeNumber String
+  timestamp   DateTime @default(now())
+  location    String
+  details     String
+  status      String
+  blockNumber Int?
+  txHash      String?
+  officerId   String?
+
+  evidence    Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  officerRel  Officer? @relation(fields: [officerId], references: [id])
+}
+
+model Report {
+  id          String   @id
+  type        String   // "EVIDENCE", "CASE", "BLOCKCHAIN", "VERIFICATION"
+  title       String
+  content     String   // text/JSON payload
+  author      String
+  badgeNumber String
+  officerId   String?
+  createdAt   DateTime @default(now())
+
+  officer     Officer? @relation(fields: [officerId], references: [id])
+}
+
+model Notification {
+  id          String   @id
+  type        String   // "INFO", "WARNING", "SUCCESS", "ERROR"
+  title       String
+  message     String
+  timestamp   DateTime @default(now())
+  read        Boolean  @default(false)
+  blockNumber Int?
+}
+
+model SystemLog {
+  id          String   @id @default(uuid())
+  level       String   // "INFO", "WARN", "ERROR"
+  message     String
+  timestamp   DateTime @default(now())
+  meta        String?  // JSON string
+}
+
+model Block {
+  blockNumber  Int      @id
+  previousHash String
+  currentHash  String
+  fileHash     String
+  caseId       String
+  evidenceId   String
+  officerId    String
+  timestamp    DateTime @default(now())
+  nonce        Int
+  status       String
+}
+

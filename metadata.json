@@ -1,0 +1,6 @@
+{
+  "name": "ChainShield",
+  "description": "A Digital Evidence Integrity Platform securing digital evidence with cryptographic hashing and immutable blockchain chain-of-custody ledgers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
