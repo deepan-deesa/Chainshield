@@ -7,12 +7,14 @@ import {
   Database, 
   FileSpreadsheet, 
   Settings, 
-  User, 
   Activity, 
   ShieldAlert,
   Menu,
   X,
-  Bell
+  Bell,
+  Search,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { UserProfile, SystemNotification } from '../types';
 
@@ -25,6 +27,10 @@ interface SidebarProps {
   onLogout: () => void;
   nodeCount: number;
   blockHeight: number;
+  theme?: string;
+  toggleTheme?: () => void;
+  searchQuery?: string;
+  setSearchQuery?: (q: string) => void;
 }
 
 export default function Sidebar({
@@ -35,7 +41,11 @@ export default function Sidebar({
   setNotificationsRead,
   onLogout,
   nodeCount,
-  blockHeight
+  blockHeight,
+  theme = 'dark',
+  toggleTheme,
+  searchQuery = '',
+  setSearchQuery
 }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -58,7 +68,16 @@ export default function Sidebar({
           <ShieldAlert className="w-6 h-6 text-[#1F6FEB] animate-pulse" />
           <span className="font-display font-bold tracking-wider text-sm">CHAINSHIELD</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {toggleTheme && (
+            <button 
+              onClick={toggleTheme} 
+              className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800/50"
+              title="Toggle Light/Dark Theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-cyan-400" />}
+            </button>
+          )}
           <button 
             onClick={() => {
               setActiveTab('notifications');
@@ -85,33 +104,69 @@ export default function Sidebar({
       `}>
         {/* Top Logo and Branding */}
         <div>
-          <div className="p-6 border-b border-gray-800/80 flex items-center gap-3">
-            <div className="p-2 bg-[#1F6FEB]/10 rounded-lg border border-[#1F6FEB]/20 glowing-blue">
-              <ShieldAlert className="w-6 h-6 text-[#1F6FEB]" />
+          <div className="p-5 border-b border-gray-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#1F6FEB]/10 rounded-lg border border-[#1F6FEB]/20 glowing-blue">
+                <ShieldAlert className="w-6 h-6 text-[#1F6FEB]" />
+              </div>
+              <div>
+                <h1 className="font-display font-bold text-lg tracking-wider text-[#F0F6FC]">CHAINSHIELD</h1>
+                <p className="text-[10px] font-mono text-[#8B949E] tracking-widest uppercase">EVIDENCE VAULT</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-display font-bold text-lg tracking-wider text-[#F0F6FC]">CHAINSHIELD</h1>
-              <p className="text-[10px] font-mono text-[#8B949E] tracking-widest uppercase">FEDERAL EVIDENCE LOCK</p>
-            </div>
+            
+            {toggleTheme && (
+              <button 
+                onClick={toggleTheme} 
+                className="hidden lg:flex p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800/50 transition-colors"
+                title="Toggle Light/Dark Theme"
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-cyan-400" />}
+              </button>
+            )}
           </div>
 
           {/* Connected User Badge */}
-          <div className="p-4 mx-4 my-4 bg-[#161B22]/50 border border-gray-800 rounded-lg flex items-center gap-3">
+          <div className="p-3 mx-4 my-3 bg-[#161B22]/50 border border-gray-800 rounded-lg flex items-center gap-3 hover-lift">
             <img 
               src={user.avatarUrl} 
               alt={user.name} 
-              className="w-10 h-10 rounded-full border border-[#1F6FEB]/30"
+              className="w-9 h-9 rounded-full border border-[#1F6FEB]/30"
               referrerPolicy="no-referrer"
             />
             <div className="overflow-hidden">
               <h3 className="text-xs font-semibold text-[#F0F6FC] truncate">{user.name}</h3>
               <p className="text-[10px] font-mono text-gray-400">{user.badgeNumber}</p>
-              <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-1.5 h-1.5 bg-[#2EA043] rounded-full animate-pulse" />
                 <span className="text-[9px] font-mono text-[#2EA043] tracking-wider uppercase font-semibold">Authorized</span>
               </div>
             </div>
           </div>
+
+          {/* Real-time Global Search Input */}
+          {setSearchQuery && (
+            <div className="px-4 mb-3">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Filter cases, files, hashes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#161B22] border border-gray-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#F0F6FC] placeholder-gray-500 focus:outline-none focus:border-[#1F6FEB]/60 focus:ring-1 focus:ring-[#1F6FEB]/60 font-sans transition-all"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2 text-[10px] font-mono text-gray-500 hover:text-white"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Navigation Items */}
           <nav className="px-4 space-y-1">
@@ -126,10 +181,10 @@ export default function Sidebar({
                     setMobileOpen(false);
                   }}
                   className={`
-                    w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200 group
+                    w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 group btn-interactive
                     ${isActive 
-                      ? 'bg-[#1F6FEB]/10 border border-[#1F6FEB]/30 text-white' 
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800/30 border border-transparent'
+                      ? 'bg-[#1F6FEB]/15 border border-[#1F6FEB]/40 text-white shadow-sm' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800/40 border border-transparent'
                     }
                   `}
                 >
@@ -170,7 +225,7 @@ export default function Sidebar({
 
           <button
             onClick={onLogout}
-            className="w-full py-2 bg-transparent hover:bg-red-950/10 border border-gray-800 hover:border-red-900/30 text-gray-400 hover:text-red-400 rounded-lg text-[11px] font-mono uppercase tracking-wider transition-all duration-200"
+            className="w-full py-2 bg-transparent hover:bg-red-950/20 border border-gray-800 hover:border-red-900/40 text-gray-400 hover:text-red-400 rounded-lg text-[11px] font-mono uppercase tracking-wider transition-all duration-200 btn-interactive"
           >
             Sever Connection
           </button>

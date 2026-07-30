@@ -3,6 +3,8 @@ import os from "os";
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import { checkDatabaseConnection, isDatabaseConnected } from './server/database/client';
 import { checkSupabaseConnection, initializeSupabaseStorage, isSupabaseConnected } from './server/database/supabase';
@@ -19,21 +21,34 @@ async function startServer() {
 
   // 1. Centralized Security Headers
   app.use(helmet({
-    contentSecurityPolicy: false, // Allow external unsplash images and Google fonts to render inside the iframe preview
+    contentSecurityPolicy: false, // Allow external unsplash images and Google fonts to render inside the preview
     crossOriginEmbedderPolicy: false
   }));
 
-  // 2. Cross-Origin Resource Sharing
+  // 2. Response Compression (Gzip/Brotli)
+  app.use(compression());
+
+  // 3. Rate Limiting for API routes
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // Limit each IP to 500 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests from this IP, please try again later.' }
+  });
+  app.use('/api', apiLimiter);
+
+  // 4. Cross-Origin Resource Sharing
   app.use(cors({
     origin: '*',
     credentials: true
   }));
 
-  // 3. Centralized Body Parsers
+  // 5. Centralized Body Parsers
   app.use(express.json({ limit: '100mb' }));
   app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-  // 4. Trace & Logging Middleware
+  // 6. Trace & Logging Middleware
   app.use(httpLogger);
 
   // 5. Synchronous Database & Supabase Connectivity Health Check
@@ -113,7 +128,7 @@ async function startServer() {
   app.use(handleNotFound);
   app.use(errorHandler);
 
-  // 10. Listen to requests
+  // 10. Listen to requests with dynamic port fallback
   function getLocalIPAddress() {
     const interfaces = os.networkInterfaces();
 
@@ -132,16 +147,30 @@ async function startServer() {
   }
 
   const LOCAL_IP = getLocalIPAddress();
-  app.listen(PORT, "0.0.0.0", () => {
-    console.clear();
 
-    console.log("======================================");
-    console.log("🚀 ChainShield Server Started");
-    console.log("======================================");
-    console.log(`🏠 Local Host   : http://localhost:${PORT}`);
-    console.log(`🌐 Network Host : http://${LOCAL_IP}:${PORT}`);
-    console.log("======================================");
-  });
+  function listenOnAvailablePort(targetPort: number) {
+    const server = app.listen(targetPort, "0.0.0.0", () => {
+      console.clear();
+      console.log("======================================");
+      console.log("🚀 ChainShield Server Started");
+      console.log("======================================");
+      console.log(`🏠 Local Host   : http://localhost:${targetPort}`);
+      console.log(`🌐 Network Host : http://${LOCAL_IP}:${targetPort}`);
+      console.log("======================================");
+    });
+
+    server.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`⚠️ Port ${targetPort} is occupied. Attempting port ${targetPort + 1}...`);
+        listenOnAvailablePort(targetPort + 1);
+      } else {
+        console.error('💥 Critical failure booting ChainShield server:', err);
+        process.exit(1);
+      }
+    });
+  }
+
+  listenOnAvailablePort(PORT);
 }
 
 startServer().catch((err) => {
