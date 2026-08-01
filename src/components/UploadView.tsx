@@ -384,9 +384,10 @@ export default function UploadView({
                   className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-2 focus:outline-none focus:border-[#1F6FEB] text-white text-[11px]"
                 >
                   <option value="">Select Target Vault...</option>
-                  {cases.map((c) => (
+                  {(cases || []).map((c) => (
                     <option key={c.id} value={c.id}>[{c.id}] {c.title}</option>
                   ))}
+
                 </select>
               </div>
 

@@ -1,31 +1,59 @@
 import React from 'react';
-import { ShieldAlert, KeyRound, Fingerprint, Eye, EyeOff, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, Mail, Lock, Fingerprint, AlertCircle, ShieldCheck } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 interface LoginViewProps {
-  onLoginSuccess: () => void;
+  onSwitchToSignUp: () => void;
 }
 
-export default function LoginView({ onLoginSuccess }: LoginViewProps) {
-  const [badgeId, setBadgeId] = React.useState('SH-9941');
-  const [pin, setPin] = React.useState('••••••••');
+export default function LoginView({ onSwitchToSignUp }: LoginViewProps) {
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState('');
+  
   const [fidoTriggered, setFidoTriggered] = React.useState(false);
   const [fidoPassed, setFidoPassed] = React.useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
     setIsAuthenticating(true);
+    console.log('[ChainShield Auth] Attempting Supabase Auth Login for:', email.trim());
 
-    // Simulate double-factor FIDO2 security biometrics sequence!
-    setTimeout(() => {
-      setFidoTriggered(true);
-      setTimeout(() => {
-        setFidoPassed(true);
+    try {
+      // 1. Supabase Auth Sign In with Password
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
+      });
+
+      console.log('[ChainShield Auth] Supabase Login Response:', { data, error });
+
+      if (error) {
+        console.error('[ChainShield Auth] Supabase Login Error:', error);
+        let msg = error.message || 'Invalid credentials or user does not exist in Supabase.';
+        if (error.message?.toLowerCase().includes('email not confirmed')) {
+          msg = 'Email address has not been confirmed yet. Please check your inbox or disable "Confirm Email" under Supabase Dashboard > Authentication > Providers > Email.';
+        }
+        setErrorMessage(msg);
+        setIsAuthenticating(false);
+        return;
+      }
+
+      if (data.user) {
+        console.log('[ChainShield Auth] Login Successful! Authenticated User ID:', data.user.id);
+        // Trigger smooth FIDO2 biometric authentication sequence
+        setFidoTriggered(true);
         setTimeout(() => {
-          onLoginSuccess();
+          setFidoPassed(true);
         }, 1200);
-      }, 1500);
-    }, 1000);
+      }
+    } catch (err: any) {
+      console.error('[ChainShield Auth] Unexpected Login Exception:', err);
+      setErrorMessage(err.message || 'Authentication error occurred.');
+      setIsAuthenticating(false);
+    }
   };
 
   return (
@@ -45,12 +73,20 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
           </div>
           <div>
             <h1 className="font-display font-bold text-xl tracking-wider text-white">CHAINSHIELD ACCESS TERMINAL</h1>
-            <p className="text-[10px] font-mono text-[#8B949E] tracking-widest uppercase">FEDERAL CYBER EVIDENCE MANAGEMENT</p>
+            <p className="text-[10px] font-mono text-[#8B949E] tracking-widest uppercase">SUPABASE AUTHENTICATION GATEWAY</p>
           </div>
         </div>
 
+        {/* Error Notification Banner */}
+        {errorMessage && (
+          <div className="p-3 bg-red-950/40 border border-red-800/60 rounded-lg flex items-center gap-2 text-xs text-red-300 font-mono">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {fidoTriggered ? (
-          // Multi-Factor FIDO2 security scan simulation
+          // Multi-Factor FIDO2 security scan animation after successful Supabase Auth
           <div className="py-8 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
             {fidoPassed ? (
               <div className="space-y-4">
@@ -59,7 +95,7 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
                 </div>
                 <div>
                   <h3 className="text-sm font-display font-bold text-[#2EA043] uppercase tracking-wider">Access Granted</h3>
-                  <p className="text-xs text-gray-400 font-mono mt-1">Cryptographic key matched. Initializing terminal session...</p>
+                  <p className="text-xs text-gray-400 font-mono mt-1">Supabase Auth verified. Loading user workspace...</p>
                 </div>
               </div>
             ) : (
@@ -68,8 +104,8 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
                   <Fingerprint className="w-8 h-8 text-[#1F6FEB]" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">Awaiting FIDO2 Hardware Touch</h3>
-                  <p className="text-xs text-gray-400 font-mono mt-1">Touch physical biometrics security key to finalize ECDSA handshake...</p>
+                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">Verifying Cryptographic Tokens</h3>
+                  <p className="text-xs text-gray-400 font-mono mt-1">Establishing RLS user session...</p>
                 </div>
                 <div className="flex justify-center gap-1">
                   <span className="w-1.5 h-1.5 bg-[#1F6FEB] rounded-full animate-bounce delay-75" />
@@ -83,33 +119,33 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
           // Base Credentials Form
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             <div className="space-y-1">
-              <label className="text-gray-400 font-mono text-[9px] uppercase tracking-wider">Badge Reference Number</label>
+              <label className="text-gray-400 font-mono text-[9px] uppercase tracking-wider">Email Address</label>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
+                <Mail className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
                 <input 
-                  type="text" 
+                  type="email" 
                   required
-                  value={badgeId}
-                  onChange={(e) => setBadgeId(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-3 pl-10 text-xs focus:outline-none focus:border-[#1F6FEB] text-white font-mono"
-                  placeholder="e.g. SH-9941"
+                  placeholder="investigator@agency.gov"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-gray-400 font-mono text-[9px] uppercase tracking-wider">Investigator Key PIN</label>
-                <span className="text-[9px] text-gray-500 font-mono">FIDO2 Biometric Fallback</span>
+                <label className="text-gray-400 font-mono text-[9px] uppercase tracking-wider">Account Password</label>
               </div>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
                 <input 
                   type="password" 
                   required
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-3 pl-10 text-xs focus:outline-none focus:border-[#1F6FEB] text-white font-mono"
+                  placeholder="••••••••"
                 />
               </div>
             </div>
@@ -125,16 +161,20 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
                 }
               `}
             >
-              {isAuthenticating ? 'Connecting security tunnel...' : 'Verify Identity & Login'}
+              {isAuthenticating ? 'Authenticating with Supabase...' : 'Verify Credentials & Login'}
             </button>
           </form>
         )}
 
-        {/* Demo fast pass hint info box */}
-        <div className="p-3 bg-gray-800/20 border border-gray-800 rounded-lg text-[10px] text-gray-500 font-mono leading-relaxed text-center">
-          <span>Demonstration Mode Active. Click </span>
-          <span className="text-[#1F6FEB] font-bold">Verify Identity</span>
-          <span> to launch secure sandbox with investigator credentials.</span>
+        {/* Link to Sign Up Page */}
+        <div className="pt-2 border-t border-gray-800/80 text-center">
+          <button
+            onClick={onSwitchToSignUp}
+            className="text-xs font-mono text-gray-400 hover:text-[#1F6FEB] transition-colors inline-flex items-center gap-1"
+          >
+            <span>Don't have an account?</span>
+            <span className="text-[#1F6FEB] font-bold underline">Create Sign Up Account</span>
+          </button>
         </div>
 
       </div>

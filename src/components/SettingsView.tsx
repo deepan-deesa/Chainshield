@@ -85,7 +85,7 @@ export default function SettingsView({
                   <label className="text-gray-400 font-mono text-[10px] uppercase">Officer Name</label>
                   <input 
                     type="text" 
-                    value={user.name}
+                    value={user?.name || ''}
                     onChange={(e) => onUpdateUser({ ...user, name: e.target.value })}
                     className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-[#1F6FEB]"
                   />
@@ -95,7 +95,7 @@ export default function SettingsView({
                   <input 
                     type="text" 
                     disabled
-                    value={user.badgeNumber}
+                    value={user?.badgeNumber || ''}
                     className="w-full bg-[#161B22] border border-gray-800 rounded-lg p-2.5 text-xs text-gray-400 cursor-not-allowed"
                   />
                 </div>
@@ -106,7 +106,7 @@ export default function SettingsView({
                   <label className="text-gray-400 font-mono text-[10px] uppercase">Agency Department</label>
                   <input 
                     type="text" 
-                    value={user.department}
+                    value={user?.department || ''}
                     onChange={(e) => onUpdateUser({ ...user, department: e.target.value })}
                     className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-[#1F6FEB]"
                   />
@@ -116,7 +116,7 @@ export default function SettingsView({
                   <input 
                     type="text" 
                     disabled
-                    value={user.securityClearance}
+                    value={user?.securityClearance || ''}
                     className="w-full bg-[#161B22] border border-gray-800 rounded-lg p-2.5 text-xs text-gray-400 cursor-not-allowed"
                   />
                 </div>
@@ -128,12 +128,13 @@ export default function SettingsView({
                   <input 
                     type="text" 
                     disabled
-                    value={user.publicKey}
+                    value={user?.publicKey || ''}
                     className="w-full bg-[#161B22] border border-gray-800 rounded-lg p-2.5 text-xs font-mono text-gray-400 truncate cursor-not-allowed"
                   />
                   <span className="text-[10px] font-mono text-gray-500 bg-gray-800 px-2 py-1.5 rounded uppercase">ECDSA-P256</span>
                 </div>
               </div>
+
 
               <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
                 <p className="text-[10px] text-gray-500 font-mono">Modifications auto-signed on hardware keyring.</p>

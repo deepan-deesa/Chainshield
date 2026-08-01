@@ -14,7 +14,9 @@ import {
   Bell,
   Search,
   Sun,
-  Moon
+  Moon,
+  User,
+  ChevronRight
 } from 'lucide-react';
 import { UserProfile, SystemNotification } from '../types';
 
@@ -25,6 +27,7 @@ interface SidebarProps {
   notifications: SystemNotification[];
   setNotificationsRead: () => void;
   onLogout: () => void;
+  onOpenProfile: () => void;
   nodeCount: number;
   blockHeight: number;
   theme?: string;
@@ -40,6 +43,7 @@ export default function Sidebar({
   notifications,
   setNotificationsRead,
   onLogout,
+  onOpenProfile,
   nodeCount,
   blockHeight,
   theme = 'dark',
@@ -69,6 +73,18 @@ export default function Sidebar({
           <span className="font-display font-bold tracking-wider text-sm">CHAINSHIELD</span>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={onOpenProfile} 
+            className="flex items-center gap-1.5 p-1 px-2 border border-gray-800 hover:border-[#1F6FEB]/50 rounded-full bg-[#161B22] hover:bg-gray-800 transition-all"
+            title="Open User Profile"
+          >
+            <img 
+              src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'} 
+              alt={user?.name || 'User'} 
+              className="w-6 h-6 rounded-full border border-[#1F6FEB]/50 object-cover"
+            />
+            <span className="text-[10px] font-mono text-gray-300 max-w-[70px] truncate">{user?.name?.split(' ')[0] || 'Profile'}</span>
+          </button>
           {toggleTheme && (
             <button 
               onClick={toggleTheme} 
@@ -127,22 +143,38 @@ export default function Sidebar({
           </div>
 
           {/* Connected User Badge */}
-          <div className="p-3 mx-4 my-3 bg-[#161B22]/50 border border-gray-800 rounded-lg flex items-center gap-3 hover-lift">
-            <img 
-              src={user.avatarUrl} 
-              alt={user.name} 
-              className="w-9 h-9 rounded-full border border-[#1F6FEB]/30"
-              referrerPolicy="no-referrer"
-            />
-            <div className="overflow-hidden">
-              <h3 className="text-xs font-semibold text-[#F0F6FC] truncate">{user.name}</h3>
-              <p className="text-[10px] font-mono text-gray-400">{user.badgeNumber}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 bg-[#2EA043] rounded-full animate-pulse" />
-                <span className="text-[9px] font-mono text-[#2EA043] tracking-wider uppercase font-semibold">Authorized</span>
+          <button 
+            onClick={() => {
+              onOpenProfile();
+              setMobileOpen(false);
+            }}
+            className="w-[calc(100%-2rem)] mx-4 my-3 p-3 bg-[#161B22]/70 hover:bg-[#1F6FEB]/10 border border-gray-800 hover:border-[#1F6FEB]/40 rounded-xl flex items-center justify-between transition-all duration-200 group text-left shadow-sm hover:shadow-md cursor-pointer"
+            title="Click to view & edit Profile"
+          >
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="relative shrink-0">
+                <img 
+                  src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'} 
+                  alt={user?.name || 'Investigator'} 
+                  className="w-9 h-9 rounded-full border border-[#1F6FEB]/40 object-cover group-hover:scale-105 transition-transform"
+                  referrerPolicy="no-referrer"
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#2EA043] rounded-full border border-[#0D1117] animate-pulse" />
+              </div>
+              <div className="overflow-hidden">
+                <h3 className="text-xs font-semibold text-[#F0F6FC] group-hover:text-[#1F6FEB] truncate transition-colors">
+                  {user?.name || 'Investigator'}
+                </h3>
+                <p className="text-[10px] font-mono text-gray-400 truncate">{user?.badgeNumber || 'SH-0000'}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <User className="w-2.5 h-2.5 text-[#1F6FEB]" />
+                  <span className="text-[9px] font-mono text-gray-400 group-hover:text-gray-300 transition-colors uppercase font-medium">View Profile</span>
+                </div>
               </div>
             </div>
-          </div>
+            <ChevronRight className="w-4 h-4 text-gray-500 group-hover:text-[#1F6FEB] group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
+          </button>
+
 
           {/* Real-time Global Search Input */}
           {setSearchQuery && (

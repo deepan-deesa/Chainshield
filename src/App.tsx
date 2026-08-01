@@ -1,11 +1,12 @@
 import React, { Suspense, lazy } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { 
   initialCases, 
   initialEvidence, 
   initialBlocks, 
   initialAuditLogs, 
-  initialNotifications, 
-  mockUserProfile 
+  initialNotifications 
 } from './mockData';
 import { Case, EvidenceItem, Block, AuditLog, SystemNotification, UserProfile } from './types';
 import { generateTxHash } from './utils';
@@ -14,6 +15,8 @@ import { generateTxHash } from './utils';
 import Sidebar from './components/Sidebar';
 import NotificationCenter from './components/NotificationCenter';
 import LoginView from './components/LoginView';
+import SignUpView from './components/SignUpView';
+import ProfileModal from './components/ProfileModal';
 
 const DashboardView = lazy(() => import('./components/DashboardView'));
 const CasesView = lazy(() => import('./components/CasesView'));
@@ -26,16 +29,31 @@ const SettingsView = lazy(() => import('./components/SettingsView'));
 // Fallback spinner component during view loading
 function LoadingFallback() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-      <div className="w-10 h-10 border-4 border-[#1F6FEB]/30 border-t-[#1F6FEB] rounded-full animate-spin" />
-      <p className="text-xs font-mono text-gray-400 tracking-wider uppercase">Loading Workspace Module...</p>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
+      <div className="relative">
+        <div className="w-14 h-14 border-4 border-[#1F6FEB]/20 border-t-[#1F6FEB] rounded-full animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-3 h-3 bg-[#1F6FEB] rounded-full animate-ping" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <h3 className="font-display font-bold text-sm text-white tracking-widest uppercase">Initializing Vault Enclave</h3>
+        <p className="text-xs font-mono text-gray-400 tracking-wider">Establishing Supabase Session & Cryptographic Tokens...</p>
+      </div>
     </div>
   );
 }
 
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+
+function MainAppContent() {
+  const { user: authUser, profile, loading, logout, updateProfileState } = useAuth();
+  const [authMode, setAuthMode] = React.useState<'login' | 'signup'>('login');
   const [activeTab, setActiveTab] = React.useState('dashboard');
+  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
+
+  const handleUpdateUser = (updatedUser: UserProfile) => {
+    updateProfileState(updatedUser);
+  };
 
   // Theme state: dark / light
   const [theme, setTheme] = React.useState<string>(() => {
@@ -44,6 +62,64 @@ export default function App() {
 
   // Global Real-time Search State
   const [searchQuery, setSearchQuery] = React.useState('');
+
+  // State Engine
+  const [cases, setCases] = React.useState<Case[]>(initialCases);
+  const [evidence, setEvidence] = React.useState<EvidenceItem[]>(initialEvidence);
+  const [blocks, setBlocks] = React.useState<Block[]>(initialBlocks);
+  const [logs, setLogs] = React.useState<AuditLog[]>(initialAuditLogs);
+  const [notifications, setNotifications] = React.useState<SystemNotification[]>(initialNotifications);
+  
+  // Custom interactive telemetry states
+  const [nodeCount, setNodeCount] = React.useState(8);
+  const [selectedCase, setSelectedCase] = React.useState<Case | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = React.useState<EvidenceItem | null>(null);
+
+  // Safe default arrays to avoid undefined map errors
+  const safeCases = cases || [];
+  const safeEvidence = evidence || [];
+  const safeBlocks = blocks || [];
+  const safeLogs = logs || [];
+  const safeNotifications = notifications || [];
+
+  // Filter items in real-time based on global search query (Hooks defined BEFORE any early returns!)
+  const q = searchQuery.toLowerCase().trim();
+  const filteredCases = React.useMemo(() => {
+    if (!q) return safeCases;
+    return safeCases.filter(c => 
+      c.title.toLowerCase().includes(q) || 
+      c.id.toLowerCase().includes(q) || 
+      c.category.toLowerCase().includes(q)
+    );
+  }, [safeCases, q]);
+
+  const filteredEvidence = React.useMemo(() => {
+    if (!q) return safeEvidence;
+    return safeEvidence.filter(e => 
+      e.name.toLowerCase().includes(q) || 
+      e.id.toLowerCase().includes(q) || 
+      e.sha256.toLowerCase().includes(q) || 
+      e.caseId.toLowerCase().includes(q)
+    );
+  }, [safeEvidence, q]);
+
+  const filteredBlocks = React.useMemo(() => {
+    if (!q) return safeBlocks;
+    return safeBlocks.filter(b => 
+      b.currentHash.toLowerCase().includes(q) || 
+      b.evidenceName.toLowerCase().includes(q) || 
+      b.blockNumber.toString().includes(q)
+    );
+  }, [safeBlocks, q]);
+
+  const filteredLogs = React.useMemo(() => {
+    if (!q) return safeLogs;
+    return safeLogs.filter(l => 
+      l.details.toLowerCase().includes(q) || 
+      l.evidenceId.toLowerCase().includes(q) || 
+      l.action.toLowerCase().includes(q)
+    );
+  }, [safeLogs, q]);
 
   // Update theme data attribute on html element
   React.useEffect(() => {
@@ -60,78 +136,59 @@ export default function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Unified State Engine
-  const [user, setUser] = React.useState<UserProfile>(mockUserProfile);
-  const [cases, setCases] = React.useState<Case[]>(initialCases);
-  const [evidence, setEvidence] = React.useState<EvidenceItem[]>(initialEvidence);
-  const [blocks, setBlocks] = React.useState<Block[]>(initialBlocks);
-  const [logs, setLogs] = React.useState<AuditLog[]>(initialAuditLogs);
-  const [notifications, setNotifications] = React.useState<SystemNotification[]>(initialNotifications);
+  // CONDITIONAL RENDERING / EARLY RETURNS (Defined AFTER all React Hooks!)
   
-  // Custom interactive telemetry states
-  const [nodeCount, setNodeCount] = React.useState(8);
-  const [selectedCase, setSelectedCase] = React.useState<Case | null>(null);
-  const [selectedEvidence, setSelectedEvidence] = React.useState<EvidenceItem | null>(null);
-
-  // Filter items in real-time based on global search query
-  const q = searchQuery.toLowerCase().trim();
-  const filteredCases = React.useMemo(() => {
-    if (!q) return cases;
-    return cases.filter(c => 
-      c.title.toLowerCase().includes(q) || 
-      c.id.toLowerCase().includes(q) || 
-      c.category.toLowerCase().includes(q)
+  // 1. If loading session state from Supabase Auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D1117] flex items-center justify-center text-white font-mono">
+        <LoadingFallback />
+      </div>
     );
-  }, [cases, q]);
+  }
 
-  const filteredEvidence = React.useMemo(() => {
-    if (!q) return evidence;
-    return evidence.filter(e => 
-      e.name.toLowerCase().includes(q) || 
-      e.id.toLowerCase().includes(q) || 
-      e.sha256.toLowerCase().includes(q) || 
-      e.caseId.toLowerCase().includes(q)
-    );
-  }, [evidence, q]);
+  // 2. PROTECTED ROUTE ENFORCEMENT: If user is not authenticated, show Login/Signup View
+  if (!authUser) {
+    if (authMode === 'signup') {
+      return <SignUpView onSwitchToLogin={() => setAuthMode('login')} />;
+    }
+    return <LoginView onSwitchToSignUp={() => setAuthMode('signup')} />;
+  }
 
-  const filteredBlocks = React.useMemo(() => {
-    if (!q) return blocks;
-    return blocks.filter(b => 
-      b.currentHash.toLowerCase().includes(q) || 
-      b.evidenceName.toLowerCase().includes(q) || 
-      b.blockNumber.toString().includes(q)
-    );
-  }, [blocks, q]);
+  // Active user profile fallback guarantee
+  const user = profile || {
+    id: authUser.id,
+    name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Investigator',
+    badgeNumber: authUser.user_metadata?.badge_number || `SH-${authUser.id.substring(0, 4).toUpperCase()}`,
+    role: 'EVIDENCE_ADMIN',
+    department: 'Federal Cyber Crime Division',
+    securityClearance: 'Level 5 (State-Security)',
+    publicKey: `0x${authUser.id.replace(/-/g, '').substring(0, 40)}`,
+    hardwareKeyId: `YubiKey-FIDO2-${authUser.id.substring(0, 4)}`,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
+  };
 
-  const filteredLogs = React.useMemo(() => {
-    if (!q) return logs;
-    return logs.filter(l => 
-      l.details.toLowerCase().includes(q) || 
-      l.evidenceId.toLowerCase().includes(q) || 
-      l.action.toLowerCase().includes(q)
-    );
-  }, [logs, q]);
 
   // Derive block height on-the-fly
-  const blockHeight = blocks.length > 0 ? Math.max(...blocks.map(b => b.blockNumber)) : 10425;
+  const blockHeight = safeBlocks.length > 0 ? Math.max(...safeBlocks.map(b => b.blockNumber)) : 10425;
 
-  // Signer / Ingestion callback
+  // Signer / Ingestion callback (automatically includes user.id)
   const handleIngestEvidence = (newEvidence: EvidenceItem) => {
-    setEvidence(prev => [newEvidence, ...prev]);
+    setEvidence(prev => [newEvidence, ...(prev || [])]);
 
-    setCases(prev => prev.map(c => {
+    setCases(prev => (prev || []).map(c => {
       if (c.id === newEvidence.caseId) {
         return {
           ...c,
-          evidenceIds: [...c.evidenceIds, newEvidence.id]
+          evidenceIds: [...(c.evidenceIds || []), newEvidence.id]
         };
       }
       return c;
     }));
 
-    const lastBlock = blocks[blocks.length - 1];
+    const lastBlock = safeBlocks[safeBlocks.length - 1];
     const newBlockNumber = lastBlock ? lastBlock.blockNumber + 1 : 10426;
-    const associatedCaseObj = cases.find(c => c.id === newEvidence.caseId);
+    const associatedCaseObj = safeCases.find(c => c.id === newEvidence.caseId);
 
     const newBlock: Block = {
       blockNumber: newBlockNumber,
@@ -149,7 +206,7 @@ export default function App() {
       nonce: Math.floor(10000 + Math.random() * 90000)
     };
 
-    setBlocks(prev => [...prev, newBlock]);
+    setBlocks(prev => [...(prev || []), newBlock]);
 
     const newAuditLog: AuditLog = {
       id: `LOG-${Math.floor(100 + Math.random() * 900)}`,
@@ -162,231 +219,54 @@ export default function App() {
       status: 'VERIFIED',
       blockNumber: newBlockNumber,
       txHash: newBlock.currentHash,
-      details: `Asset "${newEvidence.name}" ingested under Case ${newEvidence.caseId}. Signature matched blockchain consensus.`
+      details: `Asset "${newEvidence.name}" ingested under Case ${newEvidence.caseId} by ${user.name} (${user.id}). Signature matched consensus.`
     };
 
-    setLogs(prev => [newAuditLog, ...prev]);
+    setLogs(prev => [newAuditLog, ...(prev || [])]);
 
     const newNotification: SystemNotification = {
       id: `NOT-${Math.floor(100 + Math.random() * 900)}`,
       type: 'SUCCESS',
       title: 'Evidence Signature Anchored',
-      message: `File "${newEvidence.name}" committed locally to immutable block #${newBlockNumber}. Consensus node verified: 100%.`,
+      message: `File "${newEvidence.name}" committed to immutable block #${newBlockNumber}. Owner ID: ${user.id}.`,
       timestamp: new Date().toISOString(),
       read: false,
       blockNumber: newBlockNumber
     };
 
-    setNotifications(prev => [newNotification, ...prev]);
+    setNotifications(prev => [newNotification, ...(prev || [])]);
   };
 
   const handleAddCase = (newCase: Case) => {
-    setCases(prev => [newCase, ...prev]);
+    setCases(prev => [newCase, ...(prev || [])]);
     
     const newNotification: SystemNotification = {
       id: `NOT-${Math.floor(100 + Math.random() * 900)}`,
       type: 'INFO',
       title: 'Investigation Docket Initialized',
-      message: `New case locker ${newCase.id} successfully partitioned and encrypted. Ready for forensic ingestion.`,
+      message: `New case locker ${newCase.id} successfully partitioned for ${user.name}.`,
       timestamp: new Date().toISOString(),
       read: false
     };
 
-    setNotifications(prev => [newNotification, ...prev]);
-  };
-
-  const handleMineSimulatedBlock = () => {
-    if (evidence.length === 0) return;
-
-    const randomEvidence = evidence[Math.floor(Math.random() * evidence.length)];
-    const associatedCase = cases.find(c => c.id === randomEvidence.caseId);
-
-    const lastBlock = blocks[blocks.length - 1];
-    const newBlockNumber = lastBlock ? lastBlock.blockNumber + 1 : 10426;
-
-    const simulatedBlock: Block = {
-      blockNumber: newBlockNumber,
-      previousHash: lastBlock ? lastBlock.currentHash : generateTxHash(),
-      currentHash: generateTxHash(),
-      timestamp: new Date().toISOString(),
-      caseId: randomEvidence.caseId,
-      caseTitle: associatedCase ? associatedCase.title : 'State Wide Secure Network',
-      evidenceId: randomEvidence.id,
-      evidenceName: randomEvidence.name,
-      officer: 'Consensus Node Auto-Validator',
-      badgeNumber: 'VALIDATOR-NODE',
-      fileHash: randomEvidence.sha256,
-      status: 'STABLE',
-      nonce: Math.floor(10000 + Math.random() * 90000)
-    };
-
-    setBlocks(prev => [...prev, simulatedBlock]);
-
-    const checkLog: AuditLog = {
-      id: `LOG-${Math.floor(100 + Math.random() * 900)}`,
-      evidenceId: randomEvidence.id,
-      timestamp: new Date().toISOString(),
-      officer: 'Autopilot Consensus Daemon',
-      badgeNumber: 'NODE-SHIELD',
-      action: 'COURT_VERIFICATION',
-      location: 'Consensus Network Validator',
-      status: 'VERIFIED',
-      blockNumber: newBlockNumber,
-      txHash: simulatedBlock.currentHash,
-      details: `Consensus synchronization tick. Re-evaluated "${randomEvidence.name}" original SHA-256 lock. Status matched perfectly.`
-    };
-
-    setLogs(prev => [checkLog, ...prev]);
-
-    const newNotification: SystemNotification = {
-      id: `NOT-${Math.floor(100 + Math.random() * 900)}`,
-      type: 'SUCCESS',
-      title: 'Integrity Scan Completed',
-      message: `Automatic ledger block #${newBlockNumber} synchronized. Validated signature consistency for "${randomEvidence.name}".`,
-      timestamp: new Date().toISOString(),
-      read: false,
-      blockNumber: newBlockNumber
-    };
-
-    setNotifications(prev => [newNotification, ...prev]);
+    setNotifications(prev => [newNotification, ...(prev || [])]);
   };
 
   const setNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications(prev => (prev || []).map(n => ({ ...n, read: true })));
   };
-
-  const handleMarkNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const handleClearNotifications = () => {
-    setNotifications([]);
-  };
-
-  // Render correct Tab view with Suspense wrapper
-  const renderTabView = () => {
-    return (
-      <Suspense fallback={<LoadingFallback />}>
-        {(() => {
-          switch (activeTab) {
-            case 'dashboard':
-              return (
-                <DashboardView 
-                  cases={filteredCases}
-                  evidence={filteredEvidence}
-                  blocks={filteredBlocks}
-                  logs={filteredLogs}
-                  setActiveTab={setActiveTab}
-                  setSelectedCase={setSelectedCase}
-                  setSelectedEvidence={setSelectedEvidence}
-                />
-              );
-            case 'cases':
-              return (
-                <CasesView 
-                  cases={filteredCases}
-                  evidence={filteredEvidence}
-                  logs={filteredLogs}
-                  setSelectedEvidence={setSelectedEvidence}
-                  setActiveTab={setActiveTab}
-                  selectedCase={selectedCase}
-                  setSelectedCase={setSelectedCase}
-                  onAddCase={handleAddCase}
-                  currentUser={user.name}
-                  badgeNumber={user.badgeNumber}
-                />
-              );
-            case 'upload':
-              return (
-                <UploadView 
-                  cases={cases}
-                  activeCase={selectedCase}
-                  onIngestEvidence={handleIngestEvidence}
-                  selectedEvidence={selectedEvidence}
-                  setSelectedEvidence={setSelectedEvidence}
-                  currentUser={user.name}
-                  badgeNumber={user.badgeNumber}
-                />
-              );
-            case 'verify':
-              return (
-                <VerifyView 
-                  evidence={filteredEvidence}
-                />
-              );
-            case 'explorer':
-              return (
-                <ExplorerView 
-                  blocks={filteredBlocks}
-                  onMineBlock={handleMineSimulatedBlock}
-                />
-              );
-            case 'reports':
-              return (
-                <ReportsView 
-                  cases={filteredCases}
-                  evidence={filteredEvidence}
-                  logs={filteredLogs}
-                  blocks={filteredBlocks}
-                />
-              );
-            case 'settings':
-              return (
-                <SettingsView 
-                  user={user}
-                  onUpdateUser={setUser}
-                  nodeCount={nodeCount}
-                  setNodeCount={setNodeCount}
-                />
-              );
-            case 'notifications':
-              return (
-                <NotificationCenter 
-                  notifications={notifications}
-                  onMarkRead={handleMarkNotificationRead}
-                  onClearAll={handleClearNotifications}
-                />
-              );
-            default:
-              return (
-                <DashboardView 
-                  cases={filteredCases}
-                  evidence={filteredEvidence}
-                  blocks={filteredBlocks}
-                  logs={filteredLogs}
-                  setActiveTab={setActiveTab}
-                  setSelectedCase={setSelectedCase}
-                  setSelectedEvidence={setSelectedEvidence}
-                />
-              );
-          }
-        })()}
-      </Suspense>
-    );
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-  };
-
-  if (!isLoggedIn) {
-    return <LoginView onLoginSuccess={() => setIsLoggedIn(true)} />;
-  }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col lg:flex-row font-sans overflow-hidden text-[var(--text-primary)] transition-colors duration-300">
-      {/* Sidebar Navigation Panel */}
-      <Sidebar 
+    <div className="flex flex-col lg:flex-row min-h-screen bg-[#0D1117] text-[#F0F6FC] font-sans antialiased selection:bg-[#1F6FEB]/30 selection:text-white">
+      {/* Navigation Sidebar */}
+      <Sidebar
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          if (tab !== 'cases') setSelectedCase(null);
-          if (tab !== 'upload') setSelectedEvidence(null);
-        }}
+        setActiveTab={setActiveTab}
         user={user}
-        notifications={notifications}
+        notifications={safeNotifications}
         setNotificationsRead={setNotificationsRead}
-        onLogout={handleLogout}
+        onLogout={logout}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
         nodeCount={nodeCount}
         blockHeight={blockHeight}
         theme={theme}
@@ -395,13 +275,119 @@ export default function App() {
         setSearchQuery={setSearchQuery}
       />
 
-      {/* Main active workspace container */}
-      <main className="flex-1 overflow-y-auto h-screen p-4 sm:p-6 md:p-8 space-y-6 relative max-w-7xl mx-auto w-full animate-fade-in">
-        {/* Transparent glass grid overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(240,246,252,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(240,246,252,0.01)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
-        
-        {renderTabView()}
+      {/* Profile Dossier Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={user}
+        onUpdateUser={handleUpdateUser}
+        onLogout={logout}
+        onOpenSettings={() => setActiveTab('settings')}
+      />
+
+      {/* Main Workspace Body Area */}
+      <main className="flex-1 p-4 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                cases={filteredCases}
+                evidence={filteredEvidence}
+                blocks={filteredBlocks}
+                logs={filteredLogs}
+                setActiveTab={setActiveTab}
+                setSelectedCase={setSelectedCase}
+                setSelectedEvidence={setSelectedEvidence}
+              />
+            )}
+
+            {activeTab === 'cases' && (
+              <CasesView
+                cases={filteredCases}
+                evidence={filteredEvidence}
+                logs={filteredLogs}
+                setSelectedEvidence={setSelectedEvidence}
+                setActiveTab={setActiveTab}
+                selectedCase={selectedCase}
+                setSelectedCase={setSelectedCase}
+                onAddCase={handleAddCase}
+                currentUser={user.name}
+                badgeNumber={user.badgeNumber}
+              />
+            )}
+
+            {activeTab === 'upload' && (
+              <UploadView
+                cases={safeCases}
+                activeCase={selectedCase}
+                onIngestEvidence={handleIngestEvidence}
+                selectedEvidence={selectedEvidence}
+                setSelectedEvidence={setSelectedEvidence}
+                currentUser={user.name}
+                badgeNumber={user.badgeNumber}
+              />
+            )}
+
+            {activeTab === 'verify' && (
+              <VerifyView
+                evidence={filteredEvidence}
+                blocks={filteredBlocks}
+                logs={filteredLogs}
+                selectedEvidence={selectedEvidence}
+                setSelectedEvidence={setSelectedEvidence}
+                currentUser={user.name}
+                badgeNumber={user.badgeNumber}
+              />
+            )}
+
+            {activeTab === 'explorer' && (
+              <ExplorerView
+                blocks={filteredBlocks}
+                evidence={filteredEvidence}
+                cases={filteredCases}
+                logs={filteredLogs}
+              />
+            )}
+
+            {activeTab === 'reports' && (
+              <ReportsView
+                cases={filteredCases}
+                evidence={filteredEvidence}
+                logs={filteredLogs}
+                blocks={filteredBlocks}
+              />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsView
+                user={user}
+                onUpdateUser={handleUpdateUser}
+                nodeCount={nodeCount}
+                setNodeCount={setNodeCount}
+              />
+            )}
+
+            {activeTab === 'notifications' && (
+              <NotificationCenter
+                notifications={safeNotifications}
+                onMarkRead={(id) => setNotifications(prev => (prev || []).map(n => n.id === id ? { ...n, read: true } : n))}
+                onClearAll={() => setNotifications([])}
+              />
+            )}
+          </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   );
 }
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <MainAppContent />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+

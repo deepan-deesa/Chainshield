@@ -120,9 +120,10 @@ export default function ReportsView({ cases, evidence, logs, blocks }: ReportsVi
             onChange={(e) => setSelectedCaseId(e.target.value)}
             className="w-full bg-[#0D1117] border border-gray-800 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-[#1F6FEB] mt-1"
           >
-            {cases.map((c) => (
+            {(cases || []).map((c) => (
               <option key={c.id} value={c.id}>[{c.id}] {c.title}</option>
             ))}
+
           </select>
         </div>
 

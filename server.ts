@@ -161,7 +161,7 @@ async function startServer() {
 
     server.on('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
-        console.warn(`⚠️ Port ${targetPort} is occupied. Attempting port ${targetPort + 1}...`);
+        console.warn(`⚠️ Port ${targetPort} is occupied. Automatically scanning next port ${targetPort + 1}...`);
         listenOnAvailablePort(targetPort + 1);
       } else {
         console.error('💥 Critical failure booting ChainShield server:', err);
@@ -170,7 +170,9 @@ async function startServer() {
     });
   }
 
-  listenOnAvailablePort(PORT);
+  listenOnAvailablePort(PORT || 3000);
+
+
 }
 
 startServer().catch((err) => {

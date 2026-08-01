@@ -35,15 +35,21 @@ export default function DashboardView({
   setSelectedCase,
   setSelectedEvidence
 }: DashboardViewProps) {
+  const safeCases = cases || [];
+  const safeEvidence = evidence || [];
+  const safeBlocks = blocks || [];
+  const safeLogs = logs || [];
+
   // Dynamic stats calculation
-  const totalEvidence = evidence.length;
-  const activeCases = cases.filter(c => c.status === 'ACTIVE').length;
-  const blockHeight = blocks.length > 0 ? Math.max(...blocks.map(b => b.blockNumber)) : 10000;
-  const verificationsCount = logs.filter(l => l.action === 'COURT_VERIFICATION').length;
-  const totalActions = logs.length;
+  const totalEvidence = safeEvidence.length;
+  const activeCases = safeCases.filter(c => c?.status === 'ACTIVE').length;
+  const blockHeight = safeBlocks.length > 0 ? Math.max(...safeBlocks.map(b => b?.blockNumber || 0)) : 10000;
+  const verificationsCount = safeLogs.filter(l => l?.action === 'COURT_VERIFICATION').length;
+  const totalActions = safeLogs.length;
 
   // Let's create an emergency status banner if any files are marked "TAMPERED" (none initially, but user can triggers it)
-  const compromisedFiles = evidence.filter(e => e.status === 'TAMPERED');
+  const compromisedFiles = safeEvidence.filter(e => e?.status === 'TAMPERED');
+
 
   return (
     <div className="space-y-6 text-[#F0F6FC]">
