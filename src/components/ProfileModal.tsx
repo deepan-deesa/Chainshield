@@ -41,6 +41,7 @@ export default function ProfileModal({
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   const [copiedKey, setCopiedKey] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Sync props to state if user prop changes
   React.useEffect(() => {
@@ -48,6 +49,34 @@ export default function ProfileModal({
     setDepartment(user.department);
     setAvatarUrl(user.avatarUrl || '');
   }, [user]);
+
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+          onUpdateUser({
+            ...user,
+            avatarUrl: reader.result
+          });
+          setSaveSuccess(true);
+          setTimeout(() => setSaveSuccess(false), 3000);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const PRESET_AVATARS = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200',
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200',
+    'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200',
+  ];
 
   if (!isOpen) return null;
 
@@ -113,12 +142,20 @@ export default function ProfileModal({
 
           {/* User Identity Card Hero Section */}
           <div className="p-5 bg-gradient-to-b from-[#161B22]/90 to-[#161B22]/40 border border-gray-800/80 rounded-xl flex flex-col sm:flex-row items-center sm:items-start gap-5">
-            <div className="relative group">
+            <div 
+              className="relative group cursor-pointer" 
+              onClick={() => fileInputRef.current?.click()}
+              title="Click to upload/change profile photo"
+            >
               <img 
                 src={avatarUrl || user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'} 
                 alt={name}
-                className="w-20 h-20 rounded-full border-2 border-[#1F6FEB]/60 object-cover shadow-lg"
+                className="w-20 h-20 rounded-full border-2 border-[#1F6FEB]/60 object-cover shadow-lg group-hover:opacity-75 transition-opacity"
               />
+              <div className="absolute inset-0 rounded-full bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera className="w-5 h-5 text-white" />
+                <span className="text-[9px] font-mono text-white font-bold mt-0.5">Change</span>
+              </div>
               <div className="absolute -bottom-1 -right-1 p-1.5 bg-[#1F6FEB] rounded-full border-2 border-[#0D1117]">
                 <ShieldCheck className="w-3.5 h-3.5 text-white" />
               </div>
@@ -131,13 +168,24 @@ export default function ProfileModal({
                   <p className="text-xs font-mono text-[#1F6FEB] font-medium">{user.badgeNumber}</p>
                 </div>
 
-                <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium text-gray-300 hover:text-white bg-[#0D1117] hover:bg-gray-800 border border-gray-800 rounded-lg transition-colors self-center sm:self-auto"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-[#1F6FEB]" />
-                  {isEditing ? 'Cancel Editing' : 'Edit Profile'}
-                </button>
+                <div className="flex items-center gap-2 self-center sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium text-white bg-[#1F6FEB] hover:bg-[#1F6FEB]/80 rounded-lg transition-colors"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    Change Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(!isEditing)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium text-gray-300 hover:text-white bg-[#0D1117] hover:bg-gray-800 border border-gray-800 rounded-lg transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#1F6FEB]" />
+                    {isEditing ? 'Cancel Editing' : 'Edit Profile'}
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
@@ -194,17 +242,55 @@ export default function ProfileModal({
                   />
                 </div>
 
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="text-gray-400 font-mono text-[10px] uppercase flex items-center gap-1">
-                    <Camera className="w-3 h-3 text-gray-400" /> Avatar Image URL
+                {/* Profile photo options section */}
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-gray-400 font-mono text-[10px] uppercase flex items-center justify-between">
+                    <span className="flex items-center gap-1"><Camera className="w-3 h-3 text-[#1F6FEB]" /> Profile Photo / Avatar</span>
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[#1F6FEB] hover:underline cursor-pointer text-[10px]"
+                    >
+                      Upload photo from device
+                    </button>
                   </label>
-                  <input
-                    type="url"
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-[#1F6FEB] font-mono text-[11px]"
-                  />
+
+                  <div className="flex gap-2 items-center">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 bg-[#161B22] hover:bg-gray-800 border border-gray-800 rounded-lg text-xs font-mono text-gray-200 flex items-center gap-2 shrink-0"
+                    >
+                      <Camera className="w-4 h-4 text-[#1F6FEB]" />
+                      Upload File...
+                    </button>
+                    <input
+                      type="url"
+                      value={avatarUrl}
+                      onChange={(e) => setAvatarUrl(e.target.value)}
+                      placeholder="Or paste photo URL (https://...)"
+                      className="flex-1 bg-[#0D1117] border border-gray-800 rounded-lg p-2 text-white focus:outline-none focus:border-[#1F6FEB] font-mono text-[11px]"
+                    />
+                  </div>
+
+                  {/* Preset Avatar Pickers */}
+                  <div className="pt-1">
+                    <span className="text-[10px] font-mono text-gray-400 block mb-1.5">Preset Avatars:</span>
+                    <div className="flex items-center gap-2">
+                      {PRESET_AVATARS.map((url, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setAvatarUrl(url)}
+                          className={`w-8 h-8 rounded-full overflow-hidden border-2 transition-all ${
+                            avatarUrl === url ? 'border-[#1F6FEB] scale-110' : 'border-gray-800 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={url} alt={`Preset ${idx}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 

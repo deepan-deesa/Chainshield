@@ -15,12 +15,23 @@ import {
 } from 'lucide-react';
 import { EvidenceItem } from '../types';
 import { calculateSHA256, formatFileSize, shortenHash, formatDate } from '../utils';
+import { saveAuditLogToDB } from '../lib/dbService';
 
 interface VerifyViewProps {
   evidence: EvidenceItem[];
+  blocks?: any[];
+  logs?: any[];
+  selectedEvidence?: EvidenceItem | null;
+  setSelectedEvidence?: (ev: EvidenceItem | null) => void;
+  currentUser?: string;
+  badgeNumber?: string;
 }
 
-export default function VerifyView({ evidence }: VerifyViewProps) {
+export default function VerifyView({ 
+  evidence,
+  currentUser = 'Investigator',
+  badgeNumber = 'SH-9941'
+}: VerifyViewProps) {
   const [file, setFile] = React.useState<File | null>(null);
   const [isHashing, setIsHashing] = React.useState(false);
   const [hashProgress, setHashProgress] = React.useState(0);
@@ -71,6 +82,25 @@ export default function VerifyView({ evidence }: VerifyViewProps) {
       } else {
         setMatchFound(null);
       }
+
+      // Record this verification action to Database audit log
+      const newAuditLog = {
+        id: `LOG-${Math.floor(100 + Math.random() * 900)}`,
+        evidenceId: matchingItem ? matchingItem.id : 'UNMATCHED_ASSET',
+        timestamp: new Date().toISOString(),
+        officer: currentUser,
+        badgeNumber: badgeNumber,
+        action: 'COURT_VERIFICATION' as const,
+        location: 'Courtroom Verification Enclave',
+        status: matchingItem ? ('VERIFIED' as const) : ('COMPROMISED' as const),
+        blockNumber: matchingItem ? matchingItem.blockNumber : 0,
+        txHash: hash,
+        details: matchingItem 
+          ? `Cryptographic SHA-256 match confirmed for file "${selectedFile.name}". Asset hash matches block #${matchingItem.blockNumber}.`
+          : `SHA-256 hash mismatch for file "${selectedFile.name}" (Hash: ${hash.substring(0, 16)}...). Asset not anchored or tampered.`
+      };
+      saveAuditLogToDB(newAuditLog);
+
     } catch (err) {
       console.error(err);
       setIsHashing(false);

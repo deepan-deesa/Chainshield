@@ -29,17 +29,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
 
-  const getFallbackProfile = (authUser: User): UserProfile => ({
-    id: authUser.id,
-    name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Investigator',
-    badgeNumber: authUser.user_metadata?.badge_number || `SH-${authUser.id.substring(0, 4).toUpperCase()}`,
-    role: 'EVIDENCE_ADMIN',
-    department: 'Federal Cyber Crime Division',
-    securityClearance: 'Level 5 (State-Security)',
-    publicKey: `0x${authUser.id.replace(/-/g, '').substring(0, 40)}`,
-    hardwareKeyId: `YubiKey-FIDO2-${authUser.id.substring(0, 4)}`,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
-  });
+  const getFallbackProfile = (authUser: User): UserProfile => {
+    const saved = localStorage.getItem(`chainshield_profile_${authUser.id}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return {
+      id: authUser.id,
+      name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Investigator',
+      badgeNumber: authUser.user_metadata?.badge_number || `SH-${authUser.id.substring(0, 4).toUpperCase()}`,
+      role: 'EVIDENCE_ADMIN',
+      department: 'Federal Cyber Crime Division',
+      securityClearance: 'Level 5 (State-Security)',
+      publicKey: `0x${authUser.id.replace(/-/g, '').substring(0, 40)}`,
+      hardwareKeyId: `YubiKey-FIDO2-${authUser.id.substring(0, 4)}`,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
+    };
+  };
 
   const fetchProfile = async (authUser: User) => {
     try {
@@ -59,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (data) {
         console.log('[ChainShield Auth] Profile found in database:', data);
-        setProfile({
+        const merged: UserProfile = {
           id: data.id,
           name: data.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Investigator',
           badgeNumber: data.badge_number || authUser.user_metadata?.badge_number || `SH-${authUser.id.substring(0, 4).toUpperCase()}`,
@@ -68,8 +78,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           securityClearance: data.security_clearance || 'Level 5 (State-Security)',
           publicKey: `0x${authUser.id.replace(/-/g, '').substring(0, 40)}`,
           hardwareKeyId: `YubiKey-FIDO2-${authUser.id.substring(0, 4)}`,
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
-        });
+          avatarUrl: fallback.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
+        };
+        setProfile(merged);
       } else {
         console.log('[ChainShield Auth] No database profile found. Auto-creating profile row...');
         // Auto-provision profile record in database
@@ -83,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           console.log('[ChainShield Auth] Auto-provisioned profile record successfully.');
         } catch (upsertErr) {
-          console.warn('[ChainShield Auth] Auto-provisioning profile notice (ignoring gracefully):', upsertErr);
+          console.warn('[ChainShield Auth] Auto-provisioning profile notice:', upsertErr);
         }
       }
     } catch (err) {

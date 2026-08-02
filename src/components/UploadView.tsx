@@ -27,6 +27,7 @@ interface UploadViewProps {
   setSelectedEvidence: (ev: EvidenceItem | null) => void;
   currentUser: string;
   badgeNumber: string;
+  onAddCase?: (newCase: Case) => void;
 }
 
 export default function UploadView({
@@ -36,10 +37,13 @@ export default function UploadView({
   selectedEvidence,
   setSelectedEvidence,
   currentUser,
-  badgeNumber
+  badgeNumber,
+  onAddCase
 }: UploadViewProps) {
   // Selection and file state
-  const [selectedCaseId, setSelectedCaseId] = React.useState(activeCase?.id || '');
+  const [selectedCaseId, setSelectedCaseId] = React.useState(activeCase?.id || (cases && cases.length > 0 ? cases[0].id : ''));
+  const [newCaseTitle, setNewCaseTitle] = React.useState('');
+  const [isCreatingNewCase, setIsCreatingNewCase] = React.useState(false);
   const [file, setFile] = React.useState<File | null>(null);
   
   // Hashing progression states
@@ -58,12 +62,14 @@ export default function UploadView({
   const [isAnchoring, setIsAnchoring] = React.useState(false);
   const [ingestionComplete, setIngestionComplete] = React.useState(false);
 
-  // Sync state if activeCase changes
+  // Sync state if activeCase or cases changes
   React.useEffect(() => {
     if (activeCase) {
       setSelectedCaseId(activeCase.id);
+    } else if (cases && cases.length > 0 && !selectedCaseId) {
+      setSelectedCaseId(cases[0].id);
     }
-  }, [activeCase]);
+  }, [activeCase, cases, selectedCaseId]);
 
   // Copy hash helper
   const handleCopyHash = (text: string) => {
@@ -117,14 +123,33 @@ export default function UploadView({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !generatedHash || !selectedCaseId) return;
+    if (!file || !generatedHash) return;
+
+    let targetCaseId = selectedCaseId;
+    if (!targetCaseId) {
+      targetCaseId = 'CASE-101';
+      if (onAddCase && (!cases || cases.length === 0)) {
+        onAddCase({
+          id: 'CASE-101',
+          title: 'Initial Digital Evidence Investigation',
+          description: 'Primary locker for uploaded digital evidence files.',
+          status: 'ACTIVE',
+          priority: 'HIGH',
+          assignedOfficer: currentUser,
+          badgeNumber: badgeNumber,
+          department: 'Federal Cyber Crime Division',
+          createdAt: new Date().toISOString(),
+          evidenceIds: []
+        });
+      }
+    }
 
     setIsAnchoring(true);
 
     setTimeout(() => {
       const newEvidence: EvidenceItem = {
         id: `EVID-${Math.floor(100 + Math.random() * 900)}`,
-        caseId: selectedCaseId,
+        caseId: targetCaseId,
         name: file.name,
         type: evidenceType,
         size: file.size,
@@ -376,19 +401,52 @@ export default function UploadView({
             <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
               
               <div className="space-y-1">
-                <label className="text-gray-400 font-mono text-[10px] uppercase">Associate Case Vault</label>
-                <select 
-                  required
-                  value={selectedCaseId} 
-                  onChange={(e) => setSelectedCaseId(e.target.value)}
-                  className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-2 focus:outline-none focus:border-[#1F6FEB] text-white text-[11px]"
-                >
-                  <option value="">Select Target Vault...</option>
-                  {(cases || []).map((c) => (
-                    <option key={c.id} value={c.id}>[{c.id}] {c.title}</option>
-                  ))}
-
-                </select>
+                <label className="text-gray-400 font-mono text-[10px] uppercase flex items-center justify-between">
+                  <span>Associate Case Vault</span>
+                  {cases && cases.length === 0 && (
+                    <span className="text-[#1F6FEB] font-bold text-[10px]">New Case Auto-Created</span>
+                  )}
+                </label>
+                
+                {cases && cases.length > 0 ? (
+                  <select 
+                    required
+                    value={selectedCaseId} 
+                    onChange={(e) => {
+                      if (e.target.value === '__NEW__') {
+                        const newId = `CASE-${Math.floor(100 + Math.random() * 900)}`;
+                        const newCase: Case = {
+                          id: newId,
+                          title: 'New Investigation Vault',
+                          description: 'Auto-created vault locker for evidence ingestion.',
+                          status: 'ACTIVE',
+                          priority: 'HIGH',
+                          assignedOfficer: currentUser,
+                          badgeNumber: badgeNumber,
+                          department: 'Cyber Forensics Division',
+                          createdAt: new Date().toISOString(),
+                          evidenceIds: []
+                        };
+                        if (onAddCase) onAddCase(newCase);
+                        setSelectedCaseId(newId);
+                      } else {
+                        setSelectedCaseId(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-[#0D1117] border border-gray-800 rounded-lg p-2 focus:outline-none focus:border-[#1F6FEB] text-white text-[11px]"
+                  >
+                    <option value="">Select Target Vault...</option>
+                    {(cases || []).map((c) => (
+                      <option key={c.id} value={c.id}>[{c.id}] {c.title}</option>
+                    ))}
+                    <option value="__NEW__">+ Create New Case Vault</option>
+                  </select>
+                ) : (
+                  <div className="p-2.5 bg-[#161B22] border border-gray-800 rounded-lg text-xs text-gray-300 font-mono flex items-center justify-between">
+                    <span>[CASE-101] Initial Evidence Case Locker</span>
+                    <span className="text-[10px] bg-[#1F6FEB]/20 text-[#1F6FEB] px-2 py-0.5 rounded font-bold">Auto-assigned</span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -446,10 +504,10 @@ export default function UploadView({
 
               <button
                 type="submit"
-                disabled={!file || !generatedHash || !selectedCaseId || isAnchoring}
+                disabled={!file || !generatedHash || isAnchoring}
                 className={`
                   w-full py-2.5 rounded-lg text-xs font-mono font-bold tracking-wider uppercase transition-all duration-300 border flex items-center justify-center gap-2
-                  ${(!file || !generatedHash || !selectedCaseId || isAnchoring)
+                  ${(!file || !generatedHash || isAnchoring)
                     ? 'bg-gray-800/40 border-gray-800/80 text-gray-600 cursor-not-allowed'
                     : 'bg-[#1F6FEB] hover:bg-[#1F6FEB]/90 border-[#1F6FEB] text-white shadow-md shadow-[#1F6FEB]/25'
                   }

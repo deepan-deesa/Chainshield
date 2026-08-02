@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldAlert, Mail, Lock, Fingerprint, AlertCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import PixelBlast from './PixelBlast';
 
 interface LoginViewProps {
   onSwitchToSignUp: () => void;
@@ -58,13 +59,31 @@ export default function LoginView({ onSwitchToSignUp }: LoginViewProps) {
 
   return (
     <div className="min-h-screen bg-[#0D1117] flex items-center justify-center p-4 text-[#F0F6FC] font-sans relative overflow-hidden">
-      {/* Background visual graphics */}
-      <div className="absolute inset-0 bg-radial-gradient from-[#1F6FEB]/10 to-transparent pointer-events-none" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#1F6FEB]/5 rounded-full filter blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-500/5 rounded-full filter blur-[100px] pointer-events-none" />
+      {/* Interactive PixelBlast Background Canvas */}
+      <div className="absolute inset-0 pointer-events-none z-0 opacity-50">
+        <PixelBlast
+          variant="square"
+          pixelSize={4}
+          color="#1F6FEB"
+          patternScale={2.5}
+          patternDensity={1.2}
+          pixelSizeJitter={0.4}
+          enableRipples={true}
+          rippleSpeed={0.4}
+          rippleThickness={0.12}
+          rippleIntensityScale={1.5}
+          liquid={true}
+          liquidStrength={0.08}
+          liquidRadius={1.2}
+          liquidWobbleSpeed={4}
+          speed={0.4}
+          edgeFade={0.3}
+          transparent={true}
+        />
+      </div>
 
       {/* Main secure vault login shell */}
-      <div className="w-full max-w-md bg-[#161B22]/85 backdrop-blur-xl p-8 rounded-2xl border border-gray-800/80 space-y-6 relative glowing-blue">
+      <div className="w-full max-w-md bg-[#161B22]/90 backdrop-blur-xl p-8 rounded-2xl border border-gray-800/80 space-y-6 relative z-10 glowing-blue">
         
         {/* Branding header */}
         <div className="text-center space-y-2">

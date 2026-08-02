@@ -10,6 +10,15 @@ import {
 } from './mockData';
 import { Case, EvidenceItem, Block, AuditLog, SystemNotification, UserProfile } from './types';
 import { generateTxHash } from './utils';
+import { 
+  loadUserDataFromDB, 
+  saveCaseToDB, 
+  saveEvidenceToDB, 
+  saveBlockToDB, 
+  saveAuditLogToDB, 
+  saveNotificationToDB, 
+  clearAllDBData 
+} from './lib/dbService';
 
 // View Imports - Lazy Loaded for optimal code splitting & quick page boot
 import Sidebar from './components/Sidebar';
@@ -17,6 +26,7 @@ import NotificationCenter from './components/NotificationCenter';
 import LoginView from './components/LoginView';
 import SignUpView from './components/SignUpView';
 import ProfileModal from './components/ProfileModal';
+import PixelBlast from './components/PixelBlast';
 
 const DashboardView = lazy(() => import('./components/DashboardView'));
 const CasesView = lazy(() => import('./components/CasesView'));
@@ -63,17 +73,96 @@ function MainAppContent() {
   // Global Real-time Search State
   const [searchQuery, setSearchQuery] = React.useState('');
 
-  // State Engine
-  const [cases, setCases] = React.useState<Case[]>(initialCases);
-  const [evidence, setEvidence] = React.useState<EvidenceItem[]>(initialEvidence);
-  const [blocks, setBlocks] = React.useState<Block[]>(initialBlocks);
-  const [logs, setLogs] = React.useState<AuditLog[]>(initialAuditLogs);
-  const [notifications, setNotifications] = React.useState<SystemNotification[]>(initialNotifications);
+  // State Engine (Checks if demo data was cleared by user)
+  const isDemoCleared = React.useMemo(() => localStorage.getItem('chainshield_cleared_demo') === 'true', []);
+
+  const [cases, setCases] = React.useState<Case[]>(() => isDemoCleared ? [] : initialCases);
+  const [evidence, setEvidence] = React.useState<EvidenceItem[]>(() => isDemoCleared ? [] : initialEvidence);
+  const [blocks, setBlocks] = React.useState<Block[]>(() => isDemoCleared ? [] : initialBlocks);
+  const [logs, setLogs] = React.useState<AuditLog[]>(() => isDemoCleared ? [] : initialAuditLogs);
+  const [notifications, setNotifications] = React.useState<SystemNotification[]>(() => isDemoCleared ? [] : initialNotifications);
   
   // Custom interactive telemetry states
   const [nodeCount, setNodeCount] = React.useState(8);
   const [selectedCase, setSelectedCase] = React.useState<Case | null>(null);
   const [selectedEvidence, setSelectedEvidence] = React.useState<EvidenceItem | null>(null);
+
+  // Load database records on startup when user is authenticated
+  React.useEffect(() => {
+    if (authUser?.id) {
+      loadUserDataFromDB(authUser.id).then((dbData) => {
+        if (dbData.cases && dbData.cases.length > 0) setCases(dbData.cases);
+        if (dbData.evidence && dbData.evidence.length > 0) setEvidence(dbData.evidence);
+        if (dbData.blocks && dbData.blocks.length > 0) setBlocks(dbData.blocks);
+        if (dbData.logs && dbData.logs.length > 0) setLogs(dbData.logs);
+        if (dbData.notifications && dbData.notifications.length > 0) setNotifications(dbData.notifications);
+      });
+    }
+  }, [authUser?.id]);
+
+  // Clear demo data handler
+  const handleClearDemoData = () => {
+    setCases([]);
+    setEvidence([]);
+    setBlocks([]);
+    setLogs([]);
+    setNotifications([]);
+    localStorage.setItem('chainshield_cleared_demo', 'true');
+    if (authUser?.id) {
+      clearAllDBData(authUser.id);
+    }
+  };
+
+  // Scroll Navigation Configuration
+  const TAB_ORDER = React.useMemo(() => ['dashboard', 'cases', 'upload', 'verify', 'explorer', 'reports', 'settings'], []);
+  const TAB_LABELS: Record<string, string> = {
+    dashboard: 'Tactical Dashboard',
+    cases: 'Case Directory',
+    upload: 'Evidence Ingestion',
+    verify: 'Integrity Verifier',
+    explorer: 'Ledger Explorer',
+    reports: 'Court Reports',
+    settings: 'Security & Node'
+  };
+
+  const goToNextTab = React.useCallback(() => {
+    const currentIndex = TAB_ORDER.indexOf(activeTab);
+    const nextIndex = (currentIndex + 1) % TAB_ORDER.length;
+    setActiveTab(TAB_ORDER[nextIndex]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab, TAB_ORDER]);
+
+  const goToPrevTab = React.useCallback(() => {
+    const currentIndex = TAB_ORDER.indexOf(activeTab);
+    const prevIndex = (currentIndex - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+    setActiveTab(TAB_ORDER[prevIndex]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab, TAB_ORDER]);
+
+  // Keyboard arrow and scroll shortcuts
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        goToNextTab();
+      } else if (e.altKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        goToPrevTab();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [goToNextTab, goToPrevTab]);
+
+  // Reset demo data handler
+  const handleResetDemoData = () => {
+    setCases(initialCases);
+    setEvidence(initialEvidence);
+    setBlocks(initialBlocks);
+    setLogs(initialAuditLogs);
+    setNotifications(initialNotifications);
+    localStorage.removeItem('chainshield_cleared_demo');
+  };
 
   // Safe default arrays to avoid undefined map errors
   const safeCases = cases || [];
@@ -172,9 +261,10 @@ function MainAppContent() {
   // Derive block height on-the-fly
   const blockHeight = safeBlocks.length > 0 ? Math.max(...safeBlocks.map(b => b.blockNumber)) : 10425;
 
-  // Signer / Ingestion callback (automatically includes user.id)
+  // Signer / Ingestion callback (automatically includes user.id and persists to DB)
   const handleIngestEvidence = (newEvidence: EvidenceItem) => {
     setEvidence(prev => [newEvidence, ...(prev || [])]);
+    saveEvidenceToDB(newEvidence, authUser.id);
 
     setCases(prev => (prev || []).map(c => {
       if (c.id === newEvidence.caseId) {
@@ -207,6 +297,7 @@ function MainAppContent() {
     };
 
     setBlocks(prev => [...(prev || []), newBlock]);
+    saveBlockToDB(newBlock, authUser.id);
 
     const newAuditLog: AuditLog = {
       id: `LOG-${Math.floor(100 + Math.random() * 900)}`,
@@ -223,6 +314,7 @@ function MainAppContent() {
     };
 
     setLogs(prev => [newAuditLog, ...(prev || [])]);
+    saveAuditLogToDB(newAuditLog, authUser.id);
 
     const newNotification: SystemNotification = {
       id: `NOT-${Math.floor(100 + Math.random() * 900)}`,
@@ -235,10 +327,12 @@ function MainAppContent() {
     };
 
     setNotifications(prev => [newNotification, ...(prev || [])]);
+    saveNotificationToDB(newNotification, authUser.id);
   };
 
   const handleAddCase = (newCase: Case) => {
     setCases(prev => [newCase, ...(prev || [])]);
+    saveCaseToDB(newCase, authUser.id);
     
     const newNotification: SystemNotification = {
       id: `NOT-${Math.floor(100 + Math.random() * 900)}`,
@@ -250,6 +344,7 @@ function MainAppContent() {
     };
 
     setNotifications(prev => [newNotification, ...(prev || [])]);
+    saveNotificationToDB(newNotification, authUser.id);
   };
 
   const setNotificationsRead = () => {
@@ -257,36 +352,60 @@ function MainAppContent() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-[#0D1117] text-[#F0F6FC] font-sans antialiased selection:bg-[#1F6FEB]/30 selection:text-white">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-[#0D1117] text-[#F0F6FC] font-sans antialiased selection:bg-[#1F6FEB]/30 selection:text-white relative overflow-hidden">
+      {/* Interactive PixelBlast Background Canvas */}
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-40">
+        <PixelBlast
+          variant="square"
+          pixelSize={4}
+          color="#1F6FEB"
+          patternScale={2.5}
+          patternDensity={1.2}
+          pixelSizeJitter={0.4}
+          enableRipples={true}
+          rippleSpeed={0.4}
+          rippleThickness={0.12}
+          rippleIntensityScale={1.5}
+          liquid={true}
+          liquidStrength={0.08}
+          liquidRadius={1.2}
+          liquidWobbleSpeed={4}
+          speed={0.4}
+          edgeFade={0.35}
+          transparent={true}
+        />
+      </div>
+
       {/* Navigation Sidebar */}
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        user={user}
-        notifications={safeNotifications}
-        setNotificationsRead={setNotificationsRead}
-        onLogout={logout}
-        onOpenProfile={() => setIsProfileModalOpen(true)}
-        nodeCount={nodeCount}
-        blockHeight={blockHeight}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-      />
+      <div className="relative z-10 flex flex-col lg:flex-row w-full min-h-screen">
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          user={user}
+          notifications={safeNotifications}
+          setNotificationsRead={setNotificationsRead}
+          onLogout={logout}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          nodeCount={nodeCount}
+          blockHeight={blockHeight}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
 
-      {/* Profile Dossier Modal */}
-      <ProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        user={user}
-        onUpdateUser={handleUpdateUser}
-        onLogout={logout}
-        onOpenSettings={() => setActiveTab('settings')}
-      />
+        {/* Profile Dossier Modal */}
+        <ProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          user={user}
+          onUpdateUser={handleUpdateUser}
+          onLogout={logout}
+          onOpenSettings={() => setActiveTab('settings')}
+        />
 
-      {/* Main Workspace Body Area */}
-      <main className="flex-1 p-4 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+        {/* Main Workspace Body Area */}
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
         <ErrorBoundary>
           <Suspense fallback={<LoadingFallback />}>
             {activeTab === 'dashboard' && (
@@ -325,6 +444,7 @@ function MainAppContent() {
                 setSelectedEvidence={setSelectedEvidence}
                 currentUser={user.name}
                 badgeNumber={user.badgeNumber}
+                onAddCase={handleAddCase}
               />
             )}
 
@@ -364,6 +484,8 @@ function MainAppContent() {
                 onUpdateUser={handleUpdateUser}
                 nodeCount={nodeCount}
                 setNodeCount={setNodeCount}
+                onClearDemoData={handleClearDemoData}
+                onResetDemoData={handleResetDemoData}
               />
             )}
 
@@ -377,6 +499,37 @@ function MainAppContent() {
           </Suspense>
         </ErrorBoundary>
       </main>
+
+      {/* Floating Interactive Scroll & Page Navigation Bar */}
+      <div className="fixed bottom-5 right-5 lg:right-8 z-50 flex items-center gap-2 p-2 bg-[#161B22]/90 backdrop-blur-md border border-[#1F6FEB]/40 rounded-full shadow-2xl glowing-blue animate-fade-in">
+        <button
+          onClick={goToPrevTab}
+          className="p-2 bg-[#0D1117] hover:bg-gray-800 text-gray-300 hover:text-white rounded-full transition-colors font-mono text-xs flex items-center gap-1 px-3"
+          title="Move to previous section (Alt + Up)"
+        >
+          &larr; Prev
+        </button>
+
+        <div className="px-3 py-1 bg-[#0D1117]/80 rounded-full border border-gray-800 flex items-center gap-2 text-xs font-mono">
+          <span className="w-2 h-2 rounded-full bg-[#1F6FEB] animate-ping" />
+          <span className="text-[#1F6FEB] font-bold">
+            {TAB_ORDER.indexOf(activeTab) + 1}/{TAB_ORDER.length}
+          </span>
+          <span className="text-gray-300 font-semibold hidden sm:inline">
+            {TAB_LABELS[activeTab] || 'Section'}
+          </span>
+        </div>
+
+        <button
+          onClick={goToNextTab}
+          className="p-2 bg-[#1F6FEB] hover:bg-[#1F6FEB]/90 text-white rounded-full transition-all shadow-md font-mono text-xs flex items-center gap-1 px-3 font-bold"
+          title="Scroll to next section (Alt + Down)"
+        >
+          Next Section &rarr;
+        </button>
+      </div>
+
+      </div>
     </div>
   );
 }
